@@ -195,7 +195,7 @@ class resumeparse(object):
     )
 
            
-    def convert_docx_to_txt(docx_file,docx_parser):
+    def convert_docx_to_txt(self, docx_parser):
         """
             A utility function to convert a Microsoft docx files to raw text.
 
@@ -220,20 +220,23 @@ class resumeparse(object):
         #     resume_lines = [re.sub('\s+', ' ', line.strip()) for line in resume_lines if line.strip()]  # Remove empty strings and whitespaces
         #     return resume_lines
         try:
-          if docx_parser == "tika":
-            text = parser.from_file(docx_file, service='text')['content']
-          elif docx_parser == "docx2txt":
-            text = docx2txt.process(docx_file)
-          else:
-            logging.error('Choose docx_parser from tika or docx2txt :: ' + str(e)+' is not supported')
-            return [], " "
-        except RuntimeError as e:            
-            logging.error('Error in tika installation:: ' + str(e))
+            if docx_parser == "tika":
+                text = parser.from_file(self, service='text')['content']
+            elif docx_parser == "docx2txt":
+                text = docx2txt.process(self)
+            else:
+                logging.error(
+                    f'Choose docx_parser from tika or docx2txt :: {str(e)} is not supported'
+                )
+
+                return [], " "
+        except RuntimeError as e:        
+            logging.error(f'Error in tika installation:: {str(e)}')
             logging.error('--------------------------')
             logging.error('Install java for better result ')
-            text = docx2txt.process(docx_file)
+            text = docx2txt.process(self)
         except Exception as e:
-            logging.error('Error in docx file:: ' + str(e))
+            logging.error(f'Error in docx file:: {str(e)}')
             return [], " "
         try:
             clean_text = re.sub(r'\n+', '\n', text)
@@ -243,10 +246,10 @@ class resumeparse(object):
                             line.strip()]  # Remove empty strings and whitespaces
             return resume_lines, text
         except Exception as e:
-            logging.error('Error in docx file:: ' + str(e))
+            logging.error(f'Error in docx file:: {str(e)}')
             return [], " "
 
-    def convert_pdf_to_txt(pdf_file):
+    def convert_pdf_to_txt(self):
         """
         A utility function to convert a machine-readable PDF to raw text.
 
@@ -266,18 +269,16 @@ class resumeparse(object):
 
             
         try:
-            raw_text = parser.from_file(pdf_file, service='text')['content']
-        except RuntimeError as e:            
-            logging.error('Error in tika installation:: ' + str(e))
+            raw_text = parser.from_file(self, service='text')['content']
+        except RuntimeError as e:        
+            logging.error(f'Error in tika installation:: {str(e)}')
             logging.error('--------------------------')
             logging.error('Install java for better result ')
-            pdf = pdfplumber.open(pdf_file)
-            raw_text= ""
-            for page in pdf.pages:
-              raw_text += page.extract_text() + "\n"
-            pdf.close()                
+            pdf = pdfplumber.open(self)
+            raw_text = "".join(page.extract_text() + "\n" for page in pdf.pages)
+            pdf.close()
         except Exception as e:
-            logging.error('Error in docx file:: ' + str(e))
+            logging.error(f'Error in docx file:: {str(e)}')
             return [], " "
         try:
             full_string = re.sub(r'\n+', '\n', raw_text)
@@ -298,11 +299,11 @@ class resumeparse(object):
 
             return resume_lines, raw_text
         except Exception as e:
-            logging.error('Error in docx file:: ' + str(e))
+            logging.error(f'Error in docx file:: {str(e)}')
             return [], " "
             
-    def find_segment_indices(string_to_search, resume_segments, resume_indices):
-        for i, line in enumerate(string_to_search):
+    def find_segment_indices(self, resume_segments, resume_indices):
+        for i, line in enumerate(self):
 
             if line[0].islower():
                 continue
@@ -352,21 +353,21 @@ class resumeparse(object):
                     header = [a for a in resumeparse.accomplishments if header.startswith(a)][0]
                     resume_segments['accomplishments'][header] = i
 
-    def slice_segments(string_to_search, resume_segments, resume_indices):
-        resume_segments['contact_info'] = string_to_search[:resume_indices[0]]
+    def slice_segments(self, resume_segments, resume_indices):
+        resume_segments['contact_info'] = self[:resume_indices[0]]
 
         for section, value in resume_segments.items():
             if section == 'contact_info':
                 continue
 
             for sub_section, start_idx in value.items():
-                end_idx = len(string_to_search)
+                end_idx = len(self)
                 if (resume_indices.index(start_idx) + 1) != len(resume_indices):
                     end_idx = resume_indices[resume_indices.index(start_idx) + 1]
 
-                resume_segments[section][sub_section] = string_to_search[start_idx:end_idx]
+                resume_segments[section][sub_section] = self[start_idx:end_idx]
 
-    def segment(string_to_search):
+    def segment(self):
         resume_segments = {
             'objective': {},
             'work_and_employment': {},
@@ -378,9 +379,9 @@ class resumeparse(object):
 
         resume_indices = []
 
-        resumeparse.find_segment_indices(string_to_search, resume_segments, resume_indices)
-        if len(resume_indices) != 0:
-            resumeparse.slice_segments(string_to_search, resume_segments, resume_indices)
+        resumeparse.find_segment_indices(self, resume_segments, resume_indices)
+        if resume_indices:
+            resumeparse.slice_segments(self, resume_segments, resume_indices)
         else:
             resume_segments['contact_info'] = []
 
@@ -523,48 +524,45 @@ class resumeparse(object):
     #   logging.error('Issue calculating experience: '+str(exception_instance))
     #   return None
 
-    def get_experience(resume_segments):
+    def get_experience(self):
         total_exp = 0
-        if len(resume_segments['work_and_employment'].keys()):
-            text = ""
-            for key, values in resume_segments['work_and_employment'].items():
+        text = ""
+        if len(self['work_and_employment'].keys()):
+            for key, values in self['work_and_employment'].items():
                 text += " ".join(values) + " "
-            total_exp = resumeparse.calculate_experience(text)
-            return total_exp, text
         else:
-            text = ""
-            for key in resume_segments.keys():
+            for key in self.keys():
                 if key != 'education_and_training':
                     if key == 'contact_info':
-                        text += " ".join(resume_segments[key]) + " "
+                        text += " ".join(self[key]) + " "
                     else:
-                        for key_inner, value in resume_segments[key].items():
+                        for key_inner, value in self[key].items():
                             text += " ".join(value) + " "
-            total_exp = resumeparse.calculate_experience(text)
-            return total_exp, text
-        return total_exp, " "
+        total_exp = resumeparse.calculate_experience(text)
+        return total_exp, text
 
-    def find_phone(text):
+    def find_phone(self):
         try:
-            return list(iter(phonenumbers.PhoneNumberMatcher(text, None)))[0].raw_string
+            return list(iter(phonenumbers.PhoneNumberMatcher(self, None)))[0].raw_string
         except:
             try:
                 return re.search(
                     r'(\d{3}[-\.\s]??\d{3}[-\.\s]??\d{4}|\(\d{3}\)\s*\d{3}[-\.\s]??\d{4}|\d{3}[-\.\s]??\d{4})',
-                    text).group()
+                    self,
+                ).group()
+
             except:
                 return ""
 
-    def extract_email(text):
-        email = re.findall(r"([^@|\s]+@[^@]+\.[^@|\s]+)", text)
-        if email:
+    def extract_email(self):
+        if email := re.findall(r"([^@|\s]+@[^@]+\.[^@|\s]+)", self):
             try:
                 return email[0].split()[0].strip(';')
             except IndexError:
                 return None
 
-    def extract_name(resume_text):
-        nlp_text = nlp(resume_text)
+    def extract_name(self):
+        nlp_text = nlp(self)
 
         # First name and Last name are always Proper Nouns
         # pattern_FML = [{'POS': 'PROPN', 'ENT_TYPE': 'PERSON', 'OP': '+'}]
@@ -579,52 +577,52 @@ class resumeparse(object):
             return span.text
         return ""
 
-    def extract_university(text, file):
+    def extract_university(self, file):
         df = pd.read_csv(file, header=None)
         universities = [i.lower() for i in df[1]]
         college_name = []
         listex = universities
-        listsearch = [text.lower()]
+        listsearch = [self.lower()]
 
         for i in range(len(listex)):
-            for ii in range(len(listsearch)):
-                
-                if re.findall(listex[i], re.sub(' +', ' ', listsearch[ii])):
-                
-                    college_name.append(listex[i])
-        
+            college_name.extend(
+                listex[i]
+                for item in listsearch
+                if re.findall(listex[i], re.sub(' +', ' ', item))
+            )
+
         return college_name
 
-    def job_designition(text):
+    def job_designition(self):
         job_titles = []
-        
-        __nlp = nlp(text.lower())
-        
+
+        __nlp = nlp(self.lower())
+
         matches = designitionmatcher(__nlp)
         for match_id, start, end in matches:
             span = __nlp[start:end]
             job_titles.append(span.text)
         return job_titles
 
-    def get_degree(text):
-        doc = custom_nlp2(text)
+    def get_degree(self):
+        doc = custom_nlp2(self)
         degree = []
 
         degree = [ent.text.replace("\n", " ") for ent in list(doc.ents) if ent.label_ == 'Degree']
         return list(dict.fromkeys(degree).keys())
 
-    def get_company_working(text):
-        doc = custom_nlp3(text)
+    def get_company_working(self):
+        doc = custom_nlp3(self)
         degree = []
 
         degree = [ent.text.replace("\n", " ") for ent in list(doc.ents)]
         return list(dict.fromkeys(degree).keys())
     
-    def extract_skills(text):
+    def extract_skills(self):
 
         skills = []
 
-        __nlp = nlp(text.lower())
+        __nlp = nlp(self.lower())
         # Only run nlp.make_doc to speed things up
 
         matches = skillsmatcher(__nlp)
@@ -635,29 +633,29 @@ class resumeparse(object):
         return skills
 
 
-    def read_file(file,docx_parser = "tika"):
+    def read_file(self, docx_parser = "tika"):
         """
         file : Give path of resume file
         docx_parser : Enter docx2txt or tika, by default is tika
         """
         # file = "/content/Asst Manager Trust Administration.docx"
-        file = os.path.join(file)
-        if file.endswith('docx') or file.endswith('doc'):
-            if file.endswith('doc') and docx_parser == "docx2txt":
-              docx_parser = "tika"
-              logging.error("doc format not supported by the docx2txt changing back to tika")
-            resume_lines, raw_text = resumeparse.convert_docx_to_txt(file,docx_parser)
-        elif file.endswith('pdf'):
-            resume_lines, raw_text = resumeparse.convert_pdf_to_txt(file)
-        elif file.endswith('txt'):
-            with open(file, 'r', encoding='latin') as f:
+        self = os.path.join(self)
+        if self.endswith('docx') or self.endswith('doc'):
+            if self.endswith('doc') and docx_parser == "docx2txt":
+                docx_parser = "tika"
+                logging.error("doc format not supported by the docx2txt changing back to tika")
+            resume_lines, raw_text = resumeparse.convert_docx_to_txt(self, docx_parser)
+        elif self.endswith('pdf'):
+            resume_lines, raw_text = resumeparse.convert_pdf_to_txt(self)
+        elif self.endswith('txt'):
+            with open(self, 'r', encoding='latin') as f:
                 resume_lines = f.readlines()
 
         else:
             resume_lines = None
         resume_segments = resumeparse.segment(resume_lines)
-        
-        
+
+
         full_text = " ".join(resume_lines)
 
         email = resumeparse.extract_email(full_text)
@@ -671,18 +669,18 @@ class resumeparse(object):
 
         degree = resumeparse.get_degree(full_text)
         company_working = resumeparse.get_company_working(full_text)
-        
+
         skills = ""
 
         if len(resume_segments['skills'].keys()):
             for key , values in resume_segments['skills'].items():
               skills += re.sub(key, '', ",".join(values), flags=re.IGNORECASE)            
             skills = skills.strip().strip(",").split(",")
-        
+
         if len(skills) == 0:
             skills = resumeparse.extract_skills(full_text)
         skills = list(dict.fromkeys(skills).keys())
-        
+
         return {
             "email": email,
             "phone": phone,
